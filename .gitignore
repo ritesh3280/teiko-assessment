@@ -1,0 +1,17 @@
+# Created by `make setup`
+.venv/
+
+# Created by `make pipeline` (load_data.py); outputs/ is committed on purpose
+*.db
+*.db.tmp
+*.db-journal
+
+# Python / tooling caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# OS / editor files
+.DS_Store
+.vscode/
+.idea/

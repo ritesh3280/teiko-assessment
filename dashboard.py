@@ -9,6 +9,7 @@ All numbers come from the same ``analysis`` functions the pipeline uses.
 from __future__ import annotations
 
 import os
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
@@ -73,6 +74,12 @@ def load_responder_analysis(version: int) -> dict:
 def load_filter_options(version: int) -> dict[str, list]:
     with open_db(DB_PATH) as conn:
         return subsets.filter_options(conn)
+
+
+@st.cache_data(show_spinner=False)
+def load_b_cell_answer(version: int) -> pd.DataFrame:
+    with open_db(DB_PATH) as conn:
+        return subsets.mean_cell_count(conn, subsets.B_CELL_QUESTION)
 
 
 @st.cache_data(show_spinner=False)
@@ -308,7 +315,12 @@ def responders_tab(version: int) -> None:
               help=f"{counts.loc[RESPONDER, 'n_samples']:,} PBMC samples")
     k2.metric("Non-responders", f"{counts.loc[NON_RESPONDER, 'n_subjects']:,} patients", border=True,
               help=f"{counts.loc[NON_RESPONDER, 'n_samples']:,} PBMC samples")
-    k3.metric("Significant populations (FDR q < 0.05)", ", ".join(map(population_label, significant)) or "None", border=True)
+    k3.metric(
+        "Significant in the primary model (FDR q < 0.05)",
+        ", ".join(map(population_label, significant)) or "None",
+        border=True,
+        help="Linear mixed-effects model. The secondary Mann–Whitney test is reported in the table below.",
+    )
 
     with st.container(border=True):
         st.markdown("**What the statistics say**")
@@ -376,7 +388,7 @@ def responders_tab(version: int) -> None:
             "auc": st.column_config.NumberColumn(
                 "AUC", format="%.3f", help="P(random responder sample > random non-responder sample); 0.5 = no separation"
             ),
-            "significant": st.column_config.CheckboxColumn("Significant", help="Mixed-model q < 0.05"),
+            "significant": st.column_config.CheckboxColumn("Significant (primary)", help="Mixed-model q < 0.05"),
         },
     )
 
@@ -421,19 +433,45 @@ def responders_tab(version: int) -> None:
   and the patient random intercept accounts for repeated sampling.
 - **Multiple testing.** Five populations are tested, so p-values are adjusted with the Benjamini–Hochberg
   false discovery rate; a population is called significant when **q < 0.05**.
-- **Distribution-free check – Mann–Whitney U.** A two-sided rank test on the sample-level frequencies shown
-  in the boxplots; it does not assume normality. Its **AUC** is the probability that a random responder sample
-  has a higher frequency than a random non-responder sample (0.5 = no separation, 1 = perfect), a direct
-  measure of how useful the population would be for predicting response.
+- **Secondary check – Mann–Whitney U.** A two-sided rank test on the sample-level frequencies shown in the
+  boxplots; it does not assume normality and is FDR-adjusted the same way. Its **AUC** is the probability that
+  a random responder sample has a higher frequency than a random non-responder sample (0.5 = no separation,
+  1 = perfect), a direct measure of how useful the population would be for predicting response.
+- **Reading the two together.** The tests measure different things (a difference in mean frequency vs. a
+  tendency for one group's values to rank higher), so they need not agree. When only the primary test
+  survives correction, as for CD4 T cells, read the evidence as moderate rather than conclusive.
 - **Timing.** The same rank test at each timepoint (exploratory, FDR-adjusted across all 15 tests in the table)
   shows whether a difference exists before treatment (day 0) or only appears on treatment.
 - **Note.** The estimated between-patient variance is ≈ 0 for every population: a patient's samples are no
-  more alike than samples from different patients, so the mixed model and the sample-level tests agree.
+  more alike than samples from different patients, so accounting for repeated sampling barely changes the
+  estimates.
 """
         )
 
 
+def b_cell_question(version: int) -> None:
+    """The fixed follow-up question. It spans every treatment and sample type, so it sits
+    above the subset filters (which scope everything below them) and ignores them."""
+    question = subsets.B_CELL_QUESTION
+    answer = load_b_cell_answer(version).iloc[0]
+    with st.container(border=True):
+        st.markdown(
+            "**Average B cells in male melanoma responders at baseline.** Considering melanoma males of all "
+            "sample and treatment types, what is the average number of B cells for responders at time = 0?"
+        )
+        value_col, detail_col = st.columns([1, 3], vertical_alignment="center")
+        value_col.metric("Average B cells (count)", f"{answer['mean_count']:.2f}")
+        detail_col.caption(
+            f"Mean B-cell count of {answer['n_samples']:,} samples from {answer['n_subjects']:,} subjects: "
+            f"{question.describe()}. Not affected by the filters below."
+        )
+        with st.expander("SQL behind this number"):
+            st.code(subsets.MEAN_COUNT_SQL, language="sql")
+            st.caption("Parameters: " + ", ".join(f"`{k}` = `{v!r}`" for k, v in asdict(question).items()))
+
+
 def subset_tab(version: int) -> None:
+    b_cell_question(version)
     options = load_filter_options(version)
     defaults = subsets.BASELINE
     keys = {"condition": "p4_condition", "treatment": "p4_treatment", "sample_type": "p4_sample_type", "timepoint": "p4_timepoint"}

@@ -22,18 +22,19 @@ Cohort: melanoma patients treated with miraclib, PBMC samples. 331 responders (9
 
 ### Findings
 
-- **cd4_t_cell** differs significantly: its relative frequency is higher in responders by 0.64 percentage points (95% CI 0.19 to 1.08; mixed model p = 0.005, FDR q = 0.025).
-- The distribution-free Mann–Whitney U test agrees on the direction (p = 0.013; FDR q = 0.067). The effect is small, though: AUC = 0.53 (0.5 = no separation, 1 = perfect), so cd4_t_cell alone would be a weak predictor of response.
-- The cd4_t_cell difference is absent at baseline (day 0 p = 0.796) and appears on treatment (unadjusted day 7 p = 0.030, day 14 p = 0.075), so it behaves like an early on-treatment marker of response rather than a pre-treatment predictor.
+- **cd4_t_cell** shows a statistically significant association with response under the primary mixed-effects model: its relative frequency is 0.64 percentage points higher in responders (95% CI 0.19 to 1.08; p = 0.005, FDR q = 0.025).
+- The secondary, distribution-free Mann–Whitney U test points the same way (unadjusted p = 0.013) but is not significant after FDR correction (q = 0.067), so the evidence is moderate rather than conclusive.
+- The effect is small, with limited predictive value: AUC = 0.53 (0.5 = no separation, 1 = perfect), so cd4_t_cell frequency alone barely separates responders from non-responders.
+- There is no cd4_t_cell difference at baseline (day 0 p = 0.796); it appears only on treatment (unadjusted day 7 p = 0.030, day 14 p = 0.075; none of these survives FDR correction), so cd4_t_cell is at most a candidate early on-treatment marker of response, not a pre-treatment predictor.
 - None of the other populations is significant: b_cell, cd8_t_cell, nk_cell, monocyte have mixed-model q ≥ 0.321 (smallest Mann–Whitney p = 0.056).
 - Isolated single-timepoint differences (b_cell on day 14, p = 0.014) do not survive FDR correction across the 15 timepoint tests (q ≥ 0.216); treat them as hypotheses to follow up, not findings.
-- At baseline (day 0) no population differs between the groups (all Mann–Whitney p ≥ 0.211), so pre-treatment frequencies of these 5 populations do not predict response.
+- At baseline (day 0) no population differs between the groups (all Mann–Whitney p ≥ 0.211), so there is no evidence that pre-treatment frequencies of these 5 populations predict response.
 
 ![Boxplots of relative frequency by response](part3_boxplots.png)
 
 ### Statistics per population
 
-| population | median % (R) | median % (NR) | difference, pp (95% CI) | mixed-model p | q (FDR) | Mann–Whitney p | MWU q | AUC | significant |
+| population | median % (R) | median % (NR) | difference, pp (95% CI) | mixed-model p | q (FDR) | Mann–Whitney p | MWU q | AUC | significant (mixed model) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | b_cell | 9.43 | 9.79 | −0.20 (−0.48 to +0.09) | 0.171 | 0.321 | 0.056 | 0.139 | 0.475 | no |
 | cd8_t_cell | 24.73 | 24.60 | −0.06 (−0.48 to +0.35) | 0.769 | 0.769 | 0.639 | 0.639 | 0.494 | no |
@@ -43,7 +44,7 @@ Cohort: melanoma patients treated with miraclib, PBMC samples. 331 responders (9
 
 R = responders, NR = non-responders, pp = percentage points (responders − non-responders).
 
-Method: for each population, a linear mixed-effects model `percentage ~ responder + C(timepoint) + (1 | patient)` estimates the difference in mean relative frequency between responders and non-responders while accounting for the three samples per patient; p-values are adjusted across the five populations with the Benjamini–Hochberg false discovery rate, and a population is called significant at q < 0.05. A two-sided Mann–Whitney U test on the sample-level frequencies (the data in the boxplots) is a distribution-free check; AUC is the probability that a random responder sample has the higher frequency (0.5 = no separation).
+Method: for each population, a linear mixed-effects model `percentage ~ responder + C(timepoint) + (1 | patient)` estimates the difference in mean relative frequency between responders and non-responders while accounting for the three samples per patient; p-values are adjusted across the five populations with the Benjamini–Hochberg false discovery rate, and a population is called significant at q < 0.05. A two-sided Mann–Whitney U test on the sample-level frequencies (the data in the boxplots) is a secondary, distribution-free check, adjusted the same way; AUC is the probability that a random responder sample has the higher frequency (0.5 = no separation). The two tests measure different things (a difference in mean frequency vs. a tendency for one group's values to rank higher), so they need not agree; where only the primary test survives correction, the evidence should be read as moderate, not conclusive.
 
 ### By timepoint (exploratory)
 
@@ -82,3 +83,7 @@ Subjects by sex:
 |---|---:|
 | Male (M) | 344 |
 | Female (F) | 312 |
+
+### Average B cells: male melanoma responders at baseline
+
+Considering melanoma males of all sample and treatment types, the average number of B cells for responders at time = 0 is **10206.15** (485 samples from 485 subjects; filter: melanoma · male · responders · day 0 · all treatments and sample types). Result in `part4_avg_b_cells_melanoma_male_responders.csv`.

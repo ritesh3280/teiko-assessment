@@ -43,6 +43,20 @@ def test_subjects_by_sex(conn, baseline):
     assert baseline.groupby("sex")["subject"].nunique().to_dict() == {"F": 312, "M": 344}
 
 
+def test_mean_b_cells_for_male_melanoma_responders(conn, csv_frame):
+    """Melanoma males of all sample and treatment types: average B cells of responders at time 0."""
+    answer = subsets.mean_cell_count(conn).iloc[0]
+    expected = csv_frame.query(
+        "condition == 'melanoma' and sex == 'M' and response == 'yes' and time_from_treatment_start == 0"
+    )
+    assert set(expected["treatment"]) == {"miraclib", "phauximab"}  # every treatment ...
+    assert set(expected["sample_type"]) == {"PBMC", "WB"}  # ... and every sample type is included
+    assert answer["n_samples"] == len(expected) == 485
+    assert answer["n_subjects"] == expected["subject"].nunique() == 485
+    assert answer["mean_count"] == pytest.approx(expected["b_cell"].mean())
+    assert f"{answer['mean_count']:.2f}" == "10206.15"
+
+
 def test_other_filters(conn, csv_frame):
     healthy = subsets.SampleFilter(condition="healthy", treatment="none", sample_type="PBMC", timepoint=7)
     by_response = subsets.subjects_by_response(conn, healthy)

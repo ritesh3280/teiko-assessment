@@ -2,8 +2,12 @@
 
 The default filter answers Bob's question: melanoma PBMC samples at baseline
 (``time_from_treatment_start = 0``) from patients treated with miraclib. Every
-query below starts from that same filtered set (the ``subset`` CTE), and the
-aggregation is done in SQL so the database answers each question directly.
+subset query below starts from that same filtered set (the ``subset`` CTE), and
+the aggregation is done in SQL so the database answers each question directly.
+
+``mean_cell_count`` answers a separate question that spans *all* treatments and
+sample types: the average number of B cells in male melanoma responders at
+baseline.
 """
 
 from __future__ import annotations
@@ -103,6 +107,50 @@ def subjects_by_response(conn: sqlite3.Connection, sample_filter: SampleFilter =
 def subjects_by_sex(conn: sqlite3.Connection, sample_filter: SampleFilter = BASELINE) -> pd.DataFrame:
     """Step 2c: distinct subjects who are male ('M') and female ('F')."""
     return _query(conn, "subjects_by_sex", sample_filter)
+
+
+@dataclass(frozen=True)
+class CountQuestion:
+    """Average raw count of one population, over samples of every treatment and sample type."""
+
+    population: str = "b_cell"
+    condition: str = "melanoma"
+    sex: str = "M"
+    response: str = "yes"
+    timepoint: int = 0  # time_from_treatment_start, in days
+
+    def describe(self) -> str:
+        sex = {"M": "male", "F": "female"}.get(self.sex, self.sex)
+        group = {"yes": "responders", "no": "non-responders"}.get(self.response, self.response)
+        return f"{self.condition} · {sex} · {group} · day {self.timepoint} · all treatments and sample types"
+
+
+# "Considering melanoma males of all sample and treatment types, what is the
+# average number of B cells for responders at time = 0?"
+B_CELL_QUESTION = CountQuestion()
+
+# Deliberately no treatment or sample-type filter, unlike the subset queries above.
+MEAN_COUNT_SQL = """\
+SELECT COUNT(*)                       AS n_samples,
+       COUNT(DISTINCT sub.subject_id) AS n_subjects,
+       AVG(cc.cell_count)             AS mean_count
+FROM cell_counts AS cc
+JOIN cell_populations AS cp ON cp.population_id = cc.population_id
+JOIN samples AS s           ON s.sample_id = cc.sample_id
+JOIN subjects AS sub        ON sub.subject_id = s.subject_id
+WHERE cp.population_name = :population
+  AND sub.condition = :condition
+  AND sub.sex = :sex
+  AND sub.response = :response
+  AND s.time_from_treatment_start = :timepoint
+"""
+
+
+def mean_cell_count(conn: sqlite3.Connection, question: CountQuestion = B_CELL_QUESTION) -> pd.DataFrame:
+    """One row: the question's filters, then ``n_samples``, ``n_subjects`` and ``mean_count``."""
+    params = asdict(question)
+    answer = pd.read_sql_query(MEAN_COUNT_SQL, conn, params=params)
+    return pd.concat([pd.DataFrame([params]), answer], axis=1)
 
 
 def filter_options(conn: sqlite3.Connection) -> dict[str, list]:

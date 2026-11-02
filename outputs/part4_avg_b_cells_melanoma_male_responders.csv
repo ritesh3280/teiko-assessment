@@ -1,0 +1,2 @@
+population,condition,sex,response,timepoint,n_samples,n_subjects,mean_count
+b_cell,melanoma,M,yes,0,485,485,10206.15

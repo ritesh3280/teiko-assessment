@@ -123,8 +123,13 @@ def test_timepoint_means(cohort):
 
 def test_findings_are_generated_from_the_results(results, by_timepoint):
     findings = responders.key_findings(results, by_timepoint)
-    assert findings[0].startswith("**cd4_t_cell** differs significantly")
-    assert any("absent at baseline" in f for f in findings)
+    assert findings[0].startswith(
+        "**cd4_t_cell** shows a statistically significant association with response under the primary"
+    )
+    # The secondary adjusted rank test is not significant, and the text has to say so.
+    assert any("but is not significant after FDR correction (q = 0.067)" in f for f in findings)
+    assert any("limited predictive value" in f for f in findings)
+    assert any("no cd4_t_cell difference at baseline" in f and "none of these survives" in f for f in findings)
     assert any(f.startswith("At baseline (day 0) no population differs") for f in findings)
 
 

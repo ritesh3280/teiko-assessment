@@ -20,6 +20,7 @@ OUTPUTS = [
     "part4_samples_per_project.csv",
     "part4_subjects_by_response.csv",
     "part4_subjects_by_sex.csv",
+    "part4_avg_b_cells_melanoma_male_responders.csv",
     "report.md",
 ]
 
@@ -35,9 +36,15 @@ def test_pipeline_writes_every_output(db_path, tmp_path):
     statistics = pd.read_csv(tmp_path / "part3_responder_statistics.csv")
     assert statistics.loc[statistics["significant"], "population"].tolist() == ["cd4_t_cell"]
 
+    b_cells = pd.read_csv(tmp_path / "part4_avg_b_cells_melanoma_male_responders.csv")
+    assert b_cells.loc[0, "mean_count"] == 10206.15
+    assert b_cells.loc[0, "n_samples"] == 485
+
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
-    assert "**cd4_t_cell** differs significantly" in report
+    assert "**cd4_t_cell** shows a statistically significant association" in report
+    assert "not significant after FDR correction (q = 0.067)" in report
     assert "| prj1 | 384 |" in report and "| prj2 | 0 |" in report
+    assert "**10206.15**" in report
     assert (tmp_path / "part3_boxplots.png").stat().st_size > 50_000
 
 
@@ -52,5 +59,6 @@ def test_dashboard_renders_without_errors(db_path, monkeypatch):
     ]
     metrics = {metric.label: metric.value for metric in app.metric}
     assert metrics["Samples"] == "10,500"
-    assert metrics["Significant populations (FDR q < 0.05)"] == "CD4 T cells"
+    assert metrics["Significant in the primary model (FDR q < 0.05)"] == "CD4 T cells"
     assert metrics["Matching samples"] == "656"
+    assert metrics["Average B cells (count)"] == "10206.15"

@@ -7,8 +7,8 @@ from collections.abc import Sequence
 import pandas as pd
 
 from analysis.responders import Cohort, format_p
-from analysis.subsets import SampleFilter
-from analysis.theme import RESPONSE_LABELS, SEX_LABELS
+from analysis.subsets import CountQuestion, SampleFilter
+from analysis.theme import RESPONSE_LABELS, SEX_LABELS, population_label
 
 
 def markdown_table(df: pd.DataFrame, right_align: Sequence[str] = ()) -> str:
@@ -41,8 +41,11 @@ def render_report(
     per_project: pd.DataFrame,
     by_response: pd.DataFrame,
     by_sex: pd.DataFrame,
+    b_cell_question: CountQuestion,
+    b_cells: pd.DataFrame,
 ) -> str:
     counts = cohort_counts.set_index("response")
+    b_cell_answer = b_cells.iloc[0]
     summary = pd.DataFrame(
         {
             "population": population_summary["population"],
@@ -66,7 +69,7 @@ def render_report(
             "Mann–Whitney p": results["mwu_p"].map(format_p),
             "MWU q": results["mwu_q"].map(format_p),
             "AUC": results["auc"].map(lambda v: f"{v:.3f}"),
-            "significant": results["significant"].map({True: "**yes**", False: "no"}),
+            "significant (mixed model)": results["significant"].map({True: "**yes**", False: "no"}),
         }
     )
     timepoint_p = by_timepoint.pivot(index="population", columns="timepoint", values="mwu_p")
@@ -124,8 +127,11 @@ def render_report(
         "frequency between responders and non-responders while accounting for the three samples per "
         "patient; p-values are adjusted across the five populations with the Benjamini–Hochberg false "
         "discovery rate, and a population is called significant at q < 0.05. A two-sided Mann–Whitney U "
-        "test on the sample-level frequencies (the data in the boxplots) is a distribution-free check; "
-        "AUC is the probability that a random responder sample has the higher frequency (0.5 = no separation).",
+        "test on the sample-level frequencies (the data in the boxplots) is a secondary, distribution-free "
+        "check, adjusted the same way; AUC is the probability that a random responder sample has the higher "
+        "frequency (0.5 = no separation). The two tests measure different things (a difference in mean "
+        "frequency vs. a tendency for one group's values to rank higher), so they need not agree; where only "
+        "the primary test survives correction, the evidence should be read as moderate, not conclusive.",
         "",
         "### By timepoint (exploratory)",
         "",
@@ -153,6 +159,14 @@ def render_report(
         "Subjects by sex:",
         "",
         markdown_table(sex_table, right_align=["subjects"]),
+        "",
+        f"### Average {population_label(b_cell_question.population)}: male melanoma responders at baseline",
+        "",
+        "Considering melanoma males of all sample and treatment types, the average number of B cells for "
+        f"responders at time = 0 is **{b_cell_answer['mean_count']:.2f}** "
+        f"({b_cell_answer['n_samples']:,} samples from {b_cell_answer['n_subjects']:,} subjects; "
+        f"filter: {b_cell_question.describe()}). Result in "
+        "`part4_avg_b_cells_melanoma_male_responders.csv`.",
         "",
     ]
     return "\n".join(lines)

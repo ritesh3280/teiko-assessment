@@ -16,6 +16,9 @@ part4_baseline_samples.csv       baseline melanoma PBMC samples from miraclib-tr
 part4_samples_per_project.csv    ... how many per project
 part4_subjects_by_response.csv   ... how many subjects were responders / non-responders
 part4_subjects_by_sex.csv        ... how many subjects were male / female
+part4_avg_b_cells_melanoma_male_responders.csv
+                                 average B-cell count of male melanoma responders at
+                                 day 0, across all treatments and sample types
 report.md                        human-readable summary of all of the above
 """
 
@@ -44,6 +47,7 @@ def run(db_path: Path = DB_PATH, output_dir: Path = OUTPUT_DIR) -> dict:
         per_project = subsets.samples_per_project(conn, sample_filter)
         by_response = subsets.subjects_by_response(conn, sample_filter)
         by_sex = subsets.subjects_by_sex(conn, sample_filter)
+        b_cells = subsets.mean_cell_count(conn, subsets.B_CELL_QUESTION)
 
     population_summary = frequencies.population_summary(frequency_table)
     results = responders.compare_responders(cohort_freqs)
@@ -62,6 +66,8 @@ def run(db_path: Path = DB_PATH, output_dir: Path = OUTPUT_DIR) -> dict:
     write_csv(per_project, "part4_samples_per_project.csv")
     write_csv(by_response, "part4_subjects_by_response.csv")
     write_csv(by_sex, "part4_subjects_by_sex.csv")
+    # The question asks for two decimals.
+    b_cells.to_csv(output_dir / "part4_avg_b_cells_melanoma_male_responders.csv", index=False, float_format="%.2f")
     markdown = report.render_report(
         n_samples=frequency_table["sample"].nunique(),
         population_summary=population_summary,
@@ -75,6 +81,8 @@ def run(db_path: Path = DB_PATH, output_dir: Path = OUTPUT_DIR) -> dict:
         per_project=per_project,
         by_response=by_response,
         by_sex=by_sex,
+        b_cell_question=subsets.B_CELL_QUESTION,
+        b_cells=b_cells,
     )
     (output_dir / "report.md").write_text(markdown, encoding="utf-8")
 
@@ -86,6 +94,7 @@ def run(db_path: Path = DB_PATH, output_dir: Path = OUTPUT_DIR) -> dict:
         "per_project": per_project,
         "by_response": by_response,
         "by_sex": by_sex,
+        "b_cells": b_cells,
     }
 
 
@@ -97,17 +106,23 @@ def main() -> int:
         return 1
 
     rel = OUTPUT_DIR.relative_to(REPO_ROOT)
-    significant = out["results"].loc[out["results"]["significant"], ["population", "lmm_q"]]
-    names = ", ".join(f"{p} (q = {responders.format_p(q)})" for p, q in significant.itertuples(index=False))
+    significant = out["results"].loc[out["results"]["significant"], ["population", "lmm_q", "mwu_q"]]
+    names = ", ".join(
+        f"{p} (q = {responders.format_p(q)}; secondary Mann–Whitney q = {responders.format_p(mwu_q)})"
+        for p, q, mwu_q in significant.itertuples(index=False)
+    )
+    b_cells = out["b_cells"].iloc[0]
 
     def counts(df, key: str, value: str) -> str:
         return ", ".join(f"{k}: {v}" for k, v in zip(df[key], df[value]))
 
     print(f"Part 2  {len(out['frequency_table']):,} rows -> {rel}/part2_cell_frequencies.csv")
-    print(f"Part 3  significant populations (mixed model, FDR q < {responders.ALPHA}): {names or 'none'}")
+    print(f"Part 3  significant in the primary mixed model (FDR q < {responders.ALPHA}): {names or 'none'}")
     print(f"Part 4  {len(out['subset']):,} baseline samples | per project: {counts(out['per_project'], 'project', 'n_samples')}")
     print(f"        subjects by response: {counts(out['by_response'], 'response', 'n_subjects')}"
           f" | by sex: {counts(out['by_sex'], 'sex', 'n_subjects')}")
+    print(f"        average B cells, male melanoma responders at day 0 (all treatments and sample types): "
+          f"{b_cells['mean_count']:.2f} from {b_cells['n_samples']} samples")
     print(f"Report  {rel}/report.md")
     return 0
 

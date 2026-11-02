@@ -28,7 +28,7 @@ make dashboard
 | `make setup` | Creates `.venv/` and installs the pinned dependencies from `requirements.txt`. |
 | `make pipeline` | Runs `python load_data.py` (Part 1: builds `cell_counts.db`), then `python run_analysis.py` (Parts 2–4: writes `outputs/`). |
 | `make dashboard` | Serves the dashboard at http://localhost:8501 (builds the database first if it is missing). |
-| `make test` | Runs the test suite (38 tests). |
+| `make test` | Runs the test suite (39 tests). |
 
 Any target that needs Python runs `make setup` first if `.venv/` does not exist yet. The only
 prerequisites are Python 3.11+ and `make`. `load_data.py` itself uses only the standard library, so
@@ -49,9 +49,9 @@ numbers always match `outputs/`. It has three tabs:
   downloadable). Selecting a row shows that sample against the distribution of all samples.
 - **Part 3 · Responders vs non-responders**: plain-language findings, boxplots per population
   (all timepoints or one day at a time), the statistics table, and mean trajectories over days 0/7/14.
-- **Part 4 · Baseline subset**: the answers to Bob's subset questions. The filters default to his
-  question but can be changed to explore any condition, treatment, sample type and timepoint. The
-  SQL behind each number is shown.
+- **Part 4 · Baseline subset**: the average B-cell count of male melanoma responders at baseline, then
+  the answers to Bob's subset questions. The subset filters default to his question but can be changed
+  to explore any condition, treatment, sample type and timepoint. The SQL behind each number is shown.
 
 ## Results
 
@@ -71,33 +71,37 @@ The cohort is 331 responders (993 samples) and 325 non-responders (975 samples),
 
 ![Relative frequency of each population in responders vs non-responders](outputs/part3_boxplots.png)
 
-**CD4 T cells (`cd4_t_cell`) are the only population whose relative frequency differs significantly.**
-Responders have 0.64 percentage points more CD4 T cells: 95% CI 0.19 to 1.08, mixed-model
-p = 0.005, Benjamini–Hochberg q = 0.025. The distribution-free Mann–Whitney U test agrees on the
-direction (p = 0.013; q = 0.067). No other population is significant (all q ≥ 0.32).
+**CD4 T cells (`cd4_t_cell`) show a statistically significant association with response under the
+primary mixed-effects model** (Benjamini–Hochberg q = 0.025). Responders have 0.64 percentage points
+more CD4 T cells (95% CI 0.19 to 1.08; p = 0.005). The effect is small and has limited predictive value.
+The secondary, distribution-free Mann–Whitney U test points the same way (unadjusted p = 0.013) but is
+**not significant after its multiple-testing correction (q = 0.067)**, so the evidence is moderate
+rather than conclusive. No other population is significant under either test.
 
-| population | median % (R) | median % (NR) | difference, pp (95% CI) | mixed-model p | q (FDR) | Mann–Whitney p | AUC |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| b_cell | 9.43 | 9.79 | −0.20 (−0.48 to +0.09) | 0.171 | 0.321 | 0.056 | 0.475 |
-| cd8_t_cell | 24.73 | 24.60 | −0.06 (−0.48 to +0.35) | 0.769 | 0.769 | 0.639 | 0.494 |
-| **cd4_t_cell** | **30.22** | **29.66** | **+0.64 (+0.19 to +1.08)** | **0.005** | **0.025** | **0.013** | **0.532** |
-| nk_cell | 14.51 | 14.80 | −0.23 (−0.58 to +0.12) | 0.193 | 0.321 | 0.121 | 0.480 |
-| monocyte | 19.61 | 19.94 | −0.14 (−0.53 to +0.24) | 0.466 | 0.583 | 0.163 | 0.482 |
+| population | median % (R) | median % (NR) | difference, pp (95% CI) | mixed-model p | mixed-model q | Mann–Whitney p | Mann–Whitney q | AUC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| b_cell | 9.43 | 9.79 | −0.20 (−0.48 to +0.09) | 0.171 | 0.321 | 0.056 | 0.139 | 0.475 |
+| cd8_t_cell | 24.73 | 24.60 | −0.06 (−0.48 to +0.35) | 0.769 | 0.769 | 0.639 | 0.639 | 0.494 |
+| **cd4_t_cell** | 30.22 | 29.66 | +0.64 (+0.19 to +1.08) | **0.005** | **0.025** | 0.013 | 0.067 | 0.532 |
+| nk_cell | 14.51 | 14.80 | −0.23 (−0.58 to +0.12) | 0.193 | 0.321 | 0.121 | 0.202 | 0.480 |
+| monocyte | 19.61 | 19.94 | −0.14 (−0.53 to +0.24) | 0.466 | 0.583 | 0.163 | 0.204 | 0.482 |
 
 What this means for predicting response:
 
-- **The effect is real but small.** AUC = 0.53 (0.5 = chance), so CD4 frequency on its own would separate
-  responders from non-responders only slightly better than chance.
-- **It is not present before treatment.** At baseline (day 0) no population differs (CD4 p = 0.80; all
-  populations p ≥ 0.21). The CD4 gap opens on treatment (unadjusted day 7 p = 0.030, day 14 p = 0.075).
-  CD4 frequency therefore looks like an early *on-treatment* marker of response, not a pre-treatment
-  predictor. A baseline predictor would need other features.
+- **Small effect, limited predictive value.** AUC = 0.53 (0.5 = chance), so CD4 frequency on its own
+  barely separates responders from non-responders.
+- **Not present before treatment.** At baseline (day 0) no population differs (CD4 p = 0.80; all
+  populations p ≥ 0.21), so there is no evidence that baseline frequencies of these populations predict
+  response. The CD4 gap appears only on treatment (unadjusted day 7 p = 0.030, day 14 p = 0.075), and
+  neither per-timepoint test survives correction. CD4 frequency is therefore at most a candidate early
+  *on-treatment* marker of response, not a pre-treatment predictor.
 - An isolated lower B-cell frequency in responders on day 14 (unadjusted p = 0.014) does not survive FDR
   correction across the 15 per-timepoint tests (q = 0.22). It is a hypothesis to follow up, not a finding.
 
-### Part 4: baseline melanoma PBMC samples from miraclib-treated patients
+### Part 4: baseline subsets
 
-656 samples from 656 subjects (one baseline sample per subject):
+**Melanoma PBMC samples at baseline from miraclib-treated patients:** 656 samples from 656 subjects
+(one baseline sample per subject).
 
 | Samples per project | | Subjects by response | | Subjects by sex | |
 |---|---:|---|---:|---|---:|
@@ -106,6 +110,13 @@ What this means for predicting response:
 | prj3 | 272 | | | | |
 
 prj2 contributes no samples because it collected only whole blood (WB), not PBMC.
+
+**Average B cells in male melanoma responders at baseline.** Considering melanoma males of all sample and
+treatment types, the average number of B cells for responders at time = 0 is **10206.15**. That is the
+mean of 485 samples from 485 subjects, covering both treatments (miraclib and phauximab) and both sample
+types (PBMC and WB). The query is `MEAN_COUNT_SQL` in [`analysis/subsets.py`](analysis/subsets.py), and the
+result is in
+[`outputs/part4_avg_b_cells_melanoma_male_responders.csv`](outputs/part4_avg_b_cells_melanoma_male_responders.csv).
 
 ## How the statistics work (Part 3)
 
@@ -116,15 +127,19 @@ prj2 contributes no samples because it collected only whole blood (WB), not PBMC
   patient random intercept accounts for repeated sampling.
 - **Multiple testing.** Five populations are tested, so p-values are adjusted with the Benjamini–Hochberg
   false discovery rate. A population is called significant when q < 0.05.
-- **Distribution-free check: Mann–Whitney U.** A two-sided rank test on the sample-level frequencies (the
-  data in the boxplots) that makes no normality assumption. Its AUC (the probability that a random
-  responder sample has a higher frequency than a random non-responder sample) measures how useful a
-  population would be for predicting response.
+- **Secondary check: Mann–Whitney U.** A two-sided rank test on the sample-level frequencies (the data in
+  the boxplots) that makes no normality assumption, FDR-adjusted the same way. Its AUC (the probability
+  that a random responder sample has a higher frequency than a random non-responder sample) measures how
+  useful a population would be for predicting response.
+- **Reading the two together.** The tests measure different things: the mixed model tests a difference in
+  mean frequency, while the rank test asks whether one group's values tend to rank higher. They need not
+  agree. For CD4 T cells only the primary test survives correction, which is why the evidence is
+  described as moderate rather than conclusive.
 - **Timing.** The same rank test at each timepoint shows whether a difference exists before treatment or
   only appears on treatment. These tests are exploratory and FDR-adjusted across all 15 of them.
 - **A note on the fit.** The estimated between-patient variance is ≈ 0 for every population: a patient's
-  samples are no more alike than samples from different patients. The mixed model therefore agrees with
-  the sample-level tests. statsmodels' boundary warnings are expected here and are handled. The model is
+  samples are no more alike than samples from different patients. Accounting for repeated sampling
+  therefore barely changes the estimates. statsmodels' boundary warnings are expected here and are handled. The model is
   fitted with derivative-free optimisers first, because gradient-based ones can hit a singular matrix at
   that boundary.
 
@@ -217,7 +232,7 @@ The full DDL is in [`load_data.py`](load_data.py). Two views cover the common re
 │   ├── db.py             read-only database connections
 │   ├── frequencies.py    Part 2: relative-frequency table
 │   ├── responders.py     Part 3: cohort selection, mixed model, Mann–Whitney, findings
-│   ├── subsets.py        Part 4: parameterised SQL for the baseline subset
+│   ├── subsets.py        Part 4: parameterised SQL for the baseline subset and the B-cell question
 │   ├── plots.py          static boxplot figure (matplotlib)
 │   ├── report.py         outputs/report.md
 │   └── theme.py          labels and colour-blind-safe palette
@@ -246,7 +261,7 @@ The full DDL is in [`load_data.py`](load_data.py). Two views cover the common re
 make test
 ```
 
-The 38 tests check, among other things, that:
+The 39 tests check, among other things, that:
 
 - the database round-trips every value of the CSV;
 - the loader rejects inconsistent input and keeps the previous database when a build fails;

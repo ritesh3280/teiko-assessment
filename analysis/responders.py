@@ -263,19 +263,30 @@ def key_findings(results: pd.DataFrame, by_timepoint: pd.DataFrame, alpha: float
     for row in significant.itertuples():
         direction = "higher" if row.lmm_difference > 0 else "lower"
         findings.append(
-            f"**{row.population}** differs significantly: its relative frequency is {direction} in "
-            f"responders by {abs(row.lmm_difference):.2f} percentage points (95% CI "
-            f"{row.lmm_ci_low:.2f} to {row.lmm_ci_high:.2f}; mixed model p = {format_p(row.lmm_p)}, "
-            f"FDR q = {format_p(row.lmm_q)})."
+            f"**{row.population}** shows a statistically significant association with response under the "
+            f"primary mixed-effects model: its relative frequency is {abs(row.lmm_difference):.2f} percentage "
+            f"points {direction} in responders (95% CI {row.lmm_ci_low:.2f} to {row.lmm_ci_high:.2f}; "
+            f"p = {format_p(row.lmm_p)}, FDR q = {format_p(row.lmm_q)})."
         )
         same_direction = (row.auc - 0.5) * row.lmm_difference > 0
-        findings.append(
-            f"The distribution-free Mann–Whitney U test "
-            f"{'agrees on the direction' if same_direction else 'disagrees on the direction'} "
-            f"(p = {format_p(row.mwu_p)}; FDR q = {format_p(row.mwu_q)}). The effect is small, though: "
-            f"AUC = {row.auc:.2f} (0.5 = no separation, 1 = perfect), so {row.population} alone would "
-            "be a weak predictor of response."
+        rank_test = (
+            "The secondary, distribution-free Mann–Whitney U test points "
+            f"{'the same way' if same_direction else 'the opposite way'} (unadjusted p = {format_p(row.mwu_p)})"
         )
+        if row.mwu_q < alpha:
+            findings.append(f"{rank_test} and remains significant after FDR correction (q = {format_p(row.mwu_q)}).")
+        else:
+            findings.append(
+                f"{rank_test} but is not significant after FDR correction (q = {format_p(row.mwu_q)}), so the "
+                "evidence is moderate rather than conclusive."
+            )
+        if abs(row.auc - 0.5) < 0.1:
+            findings.append(
+                f"The effect is small, with limited predictive value: AUC = {row.auc:.2f} (0.5 = no separation, "
+                f"1 = perfect), so {row.population} frequency alone barely separates responders from non-responders."
+            )
+        else:
+            findings.append(f"Separation of the groups: AUC = {row.auc:.2f} (0.5 = no separation, 1 = perfect).")
         timeline = by_timepoint[by_timepoint["population"] == row.population]
         at_baseline = timeline[timeline["timepoint"] == baseline_day].iloc[0]
         on_treatment = timeline[timeline["timepoint"] != baseline_day]
@@ -287,10 +298,17 @@ def key_findings(results: pd.DataFrame, by_timepoint: pd.DataFrame, alpha: float
                 "help predict response."
             )
         elif (on_treatment["mwu_p"] < alpha).any():
+            surviving = on_treatment.loc[on_treatment["mwu_q"] < alpha, "timepoint"].tolist()
+            correction = (
+                "none of these survives FDR correction"
+                if not surviving
+                else f"day {', '.join(map(str, surviving))} survives FDR correction"
+            )
             findings.append(
-                f"The {row.population} difference is absent at baseline (day {baseline_day} "
-                f"p = {format_p(at_baseline.mwu_p)}) and appears on treatment (unadjusted {later}), so it behaves "
-                "like an early on-treatment marker of response rather than a pre-treatment predictor."
+                f"There is no {row.population} difference at baseline (day {baseline_day} "
+                f"p = {format_p(at_baseline.mwu_p)}); it appears only on treatment (unadjusted {later}; "
+                f"{correction}), so {row.population} is at most a candidate early on-treatment marker of "
+                "response, not a pre-treatment predictor."
             )
         else:
             findings.append(
@@ -320,7 +338,7 @@ def key_findings(results: pd.DataFrame, by_timepoint: pd.DataFrame, alpha: float
     if (baseline["mwu_p"] >= alpha).all():
         findings.append(
             f"At baseline (day {baseline_day}) no population differs between the groups (all Mann–Whitney "
-            f"p ≥ {format_p(baseline['mwu_p'].min())}), so pre-treatment frequencies of these "
-            f"{len(results)} populations do not predict response."
+            f"p ≥ {format_p(baseline['mwu_p'].min())}), so there is no evidence that pre-treatment "
+            f"frequencies of these {len(results)} populations predict response."
         )
     return findings

@@ -9,6 +9,8 @@ All numbers come from the same ``analysis`` functions the pipeline uses.
 from __future__ import annotations
 
 import os
+import sqlite3
+import tempfile
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +27,10 @@ from analysis.responders import NON_RESPONDER, RESPONDER, format_p
 from analysis.theme import DARK, LIGHT, RESPONSE_LABELS, SEX_LABELS, population_label
 
 DB_PATH = Path(os.environ.get("CELL_COUNTS_DB", load_data.DB_PATH))  # override used by the tests
+if not DB_PATH.exists() and not os.access(DB_PATH.parent, os.W_OK):
+    # A hosted deployment (e.g. Streamlit Community Cloud) has no database and may run from a
+    # read-only folder: build the database in the temp folder instead.
+    DB_PATH = Path(tempfile.gettempdir()) / DB_PATH.name
 GROUPS = [(RESPONDER, "responders"), (NON_RESPONDER, "non_responders")]  # fixed order = fixed colours
 CHART_CONFIG = {"displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d", "autoScale2d"]}
 
@@ -555,7 +561,7 @@ def subset_tab(version: int) -> None:
 def main() -> None:
     try:
         version = database_version()
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, sqlite3.Error) as exc:
         st.error(f"Could not build the database: {exc}")
         st.stop()
     overview = load_overview(version)

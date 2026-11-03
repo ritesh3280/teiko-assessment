@@ -1,10 +1,8 @@
 [server]
 headless = true  # no "enter your email" prompt, no auto-opened browser
 port = 8501
-# GitHub Codespaces serves the app through its port-forwarding proxy, whose
-# requests fail Streamlit's CORS / XSRF origin checks; disable them for local use.
-enableCORS = false
-enableXsrfProtection = false
+# CORS / XSRF protection stays on here, so a hosted deployment keeps Streamlit's
+# defaults; `make dashboard` turns both off for GitHub Codespaces' port forwarding.
 
 [browser]
 gatherUsageStats = false

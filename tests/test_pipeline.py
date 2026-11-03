@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -62,3 +63,13 @@ def test_dashboard_renders_without_errors(db_path, monkeypatch):
     assert metrics["Significant in the primary model (FDR q < 0.05)"] == "CD4 T cells"
     assert metrics["Matching samples"] == "656"
     assert metrics["Average B cells (count)"] == "10206.15"
+
+
+def test_dashboard_builds_its_own_database_when_there_is_none(tmp_path, monkeypatch):
+    """As on a hosted deployment: no database, and its usual folder cannot be written to."""
+    monkeypatch.setenv("CELL_COUNTS_DB", str(tmp_path / "missing-folder" / "cell_counts.db"))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # the fallback location
+    app = AppTest.from_file(str(REPO_ROOT / "dashboard.py"), default_timeout=300).run()
+    assert not app.exception
+    assert (tmp_path / "cell_counts.db").is_file()
+    assert {metric.label: metric.value for metric in app.metric}["Samples"] == "10,500"

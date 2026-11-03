@@ -28,7 +28,7 @@ make dashboard
 | `make setup` | Creates `.venv/` and installs the pinned dependencies from `requirements.txt`. |
 | `make pipeline` | Runs `python load_data.py` (Part 1: builds `cell_counts.db`), then `python run_analysis.py` (Parts 2–4: writes `outputs/`). |
 | `make dashboard` | Serves the dashboard at http://localhost:8501 (builds the database first if it is missing). |
-| `make test` | Runs the test suite (39 tests). |
+| `make test` | Runs the test suite (40 tests). |
 
 Any target that needs Python runs `make setup` first if `.venv/` does not exist yet. The only
 prerequisites are Python 3.11+ and `make`. `load_data.py` itself uses only the standard library, so
@@ -261,14 +261,15 @@ The full DDL is in [`load_data.py`](load_data.py). Two views cover the common re
 make test
 ```
 
-The 39 tests check, among other things, that:
+The 40 tests check, among other things, that:
 
 - the database round-trips every value of the CSV;
 - the loader rejects inconsistent input and keeps the previous database when a build fails;
 - the SQL results for Parts 2 and 4 match an independent pandas computation;
 - the statistics detect a planted difference in simulated data and reproduce the reported findings;
 - every output is written;
-- the dashboard renders without errors (via Streamlit's `AppTest`).
+- the dashboard renders without errors (via Streamlit's `AppTest`), including when it has to build
+  its own database, as on a hosted deployment.
 
 ## Notes and assumptions
 
@@ -279,5 +280,7 @@ The 39 tests check, among other things, that:
 - Running locally without Codespaces works the same way on macOS or Linux with Python 3.11+.
   `make setup` uses `python3` (override with `make setup PYTHON=python3.12`), and to run scripts directly,
   activate the environment first with `source .venv/bin/activate`.
-- To publish the dashboard publicly, deploy the repository on [Streamlit Community Cloud](https://streamlit.io/cloud)
-  with `dashboard.py` as the entry point. It builds the database from `cell-count.csv` on first start.
+- To host the dashboard, deploy this repository's `main` branch on [Streamlit Community Cloud](https://streamlit.io/cloud)
+  with `dashboard.py` as the entry point and Python 3.12. The database is not committed, so a hosted app builds
+  it from `cell-count.csv` on first start (in the temp folder if the code folder is read-only). A hosted app
+  that has not been opened for a while goes to sleep; waking it takes about a minute.

@@ -9,6 +9,11 @@ PYTHON ?= python3
 VENV   := .venv
 PY     := $(VENV)/bin/python
 PORT   ?= 8501
+# GitHub Codespaces serves the dashboard through its port-forwarding proxy, whose requests
+# fail Streamlit's CORS / XSRF origin checks, so the local server turns them off. A hosted
+# deployment (Streamlit Community Cloud) does not use these flags and keeps the protections.
+STREAMLIT_FLAGS := --server.headless true --browser.gatherUsageStats false \
+                   --server.enableCORS false --server.enableXsrfProtection false
 
 .DEFAULT_GOAL := help
 .PHONY: help setup pipeline dashboard test clean
@@ -32,7 +37,7 @@ pipeline: | $(PY) ## Build cell_counts.db from cell-count.csv, then write the Pa
 
 dashboard: | $(PY) ## Serve the dashboard (Parts 2-4) at http://localhost:8501 (change with PORT=...)
 	@test -f cell_counts.db || $(PY) load_data.py
-	$(PY) -m streamlit run dashboard.py --server.port $(PORT) --server.headless true --browser.gatherUsageStats false
+	$(PY) -m streamlit run dashboard.py --server.port $(PORT) $(STREAMLIT_FLAGS)
 
 test: | $(PY) ## Run the test suite
 	$(PY) -m pytest

@@ -6,6 +6,9 @@ immune populations in every sample (Part 2), tests whether those frequencies dif
 responders and non-responders to miraclib (Part 3), and summarises a baseline subset of the trial
 (Part 4). An interactive Streamlit dashboard presents Parts 2–4 straight from the database.
 
+**Dashboard: <https://teiko-assessment-dgxwyhkj9csp9keoxuwxapp.streamlit.app/>** (hosted; to run it
+locally, see below).
+
 ## Quick start (GitHub Codespaces)
 
 Open the repository in a codespace (**Code → Codespaces → Create codespace**). The dev container uses
@@ -36,11 +39,13 @@ prerequisites are Python 3.11+ and `make`. `load_data.py` itself uses only the s
 
 ## Dashboard
 
-**Link: <http://localhost:8501>** (start it with `make dashboard`).
+**Hosted: <https://teiko-assessment-dgxwyhkj9csp9keoxuwxapp.streamlit.app/>** (Streamlit Community Cloud,
+deployed from `main`). If nobody has opened it for a while it shows a wake-up button first; it then takes
+about a minute to start.
 
-In Codespaces, port 8501 is forwarded automatically: use the **Open in Browser** prompt, or the
-**Ports** tab → port 8501 → globe icon. The forwarded URL looks like
-`https://<codespace-name>-8501.app.github.dev`.
+**Local: <http://localhost:8501>** (start it with `make dashboard`). In Codespaces, port 8501 is forwarded
+automatically: use the **Open in Browser** prompt, or the **Ports** tab → port 8501 → globe icon. The
+forwarded URL looks like `https://<codespace-name>-8501.app.github.dev`.
 
 The dashboard reads `cell_counts.db` and uses the same analysis functions as the pipeline, so its
 numbers always match `outputs/`. It has three tabs:
@@ -280,7 +285,7 @@ The 40 tests check, among other things, that:
 - Running locally without Codespaces works the same way on macOS or Linux with Python 3.11+.
   `make setup` uses `python3` (override with `make setup PYTHON=python3.12`), and to run scripts directly,
   activate the environment first with `source .venv/bin/activate`.
-- To host the dashboard, deploy this repository's `main` branch on [Streamlit Community Cloud](https://streamlit.io/cloud)
-  with `dashboard.py` as the entry point and Python 3.12. The database is not committed, so a hosted app builds
-  it from `cell-count.csv` on first start (in the temp folder if the code folder is read-only). A hosted app
-  that has not been opened for a while goes to sleep; waking it takes about a minute.
+- The hosted dashboard runs on [Streamlit Community Cloud](https://streamlit.io/cloud) from this repository's
+  `main` branch, with `dashboard.py` as the entry point, and updates when `main` changes. The database is not
+  committed, so the hosted app builds it from `cell-count.csv` on first start (in the temp folder if the code
+  folder is read-only).
